@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lung Linh Decor - Auto Post</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <i class="ph-fill ph-lightbulb"></i>
+                <h2>Lung Linh Decor</h2>
+            </div>
+            <nav>
+                <a href="#" class="nav-item active" data-tab="dashboard">
+                    <i class="ph ph-squares-four"></i> Dashboard
+                </a>
+                <a href="#" class="nav-item" data-tab="settings">
+                    <i class="ph ph-gear"></i> Cấu hình
+                </a>
+                <a href="#" class="nav-item" data-tab="scheduled">
+                    <i class="ph ph-calendar-check"></i> Bài đã lên lịch
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="runScriptBtn" class="btn btn-primary btn-run">
+                    <i class="ph ph-rocket-launch"></i> Chạy Auto Post
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <h1>Xin chào, Admin! 👋</h1>
+                <p>Hệ thống tự động lên lịch bài đăng Fanpage.</p>
+            </header>
+
+            <!-- Dashboard Tab -->
+            <section id="dashboard" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ph ph-files"></i></div>
+                        <div class="stat-info">
+                            <h3>Tổng bài chờ đăng</h3>
+                            <p id="totalPosts">Đang tải...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-2">
+                    <h3>Trạng thái hệ thống</h3>
+                    <div id="systemLog" class="terminal-box">
+                        Sẵn sàng...
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section id="settings" class="tab-content">
+                <div class="card">
+                    <h3>Cấu hình kết nối Facebook</h3>
+                    <p class="text-muted">Nhập ID Fanpage và Access Token (có quyền `publish_pages`, `pages_manage_posts`).</p>
+                    
+                    <form id="configForm" class="mt-2">
+                        <div class="form-group">
+                            <label for="fanpageID">Fanpage ID</label>
+                            <input type="text" id="fanpageID" placeholder="VD: 932826203256993" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="token">Access Token</label>
+                            <textarea id="token" rows="4" placeholder="Nhập mã token siêu dài vào đây..." required></textarea>
+                            <small>Lấy mã tại: <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Lưu cấu hình</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Scheduled Posts Tab -->
+            <section id="scheduled" class="tab-content">
+                <div class="card">
+                    <div class="flex-between">
+                        <h3>Các bài viết đang chờ xuất bản</h3>
+                        <button id="refreshPostsBtn" class="btn btn-secondary btn-sm"><i class="ph ph-arrows-clockwise"></i> Làm mới</button>
+                    </div>
+                    
+                    <div class="table-responsive mt-2">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nội dung (Trích đoạn)</th>
+                                    <th>Giờ tạo</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="postsList">
+                                <tr>
+                                    <td colspan="4" class="text-center">Đang tải dữ liệu...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="postModal" class="modal">
+        <div class="modal-content card">
+            <span class="close-modal">&times;</span>
+            <h3 id="modalTitle">Chi tiết bài viết</h3>
+            
+            <div class="modal-body">
+                <div class="modal-image-container">
+                    <img id="modalImage" src="" alt="Post image" style="display:none; max-width: 100%; border-radius: 8px;">
+                </div>
+                <div class="modal-info mt-2">
+                    <p><strong class="text-muted">ID:</strong> <span id="modalId"></span></p>
+                    <p><strong class="text-muted">Thời gian đăng:</strong> <span id="modalTime" style="color: var(--primary); font-weight: bold;"></span></p>
+                    <div class="mt-2">
+                        <strong class="text-muted">Nội dung:</strong>
+                        <div id="modalMessage" class="terminal-box" style="height: auto; min-height: 100px; padding: 1rem; color: #fff; background: rgba(0,0,0,0.5); font-family: 'Outfit', sans-serif; white-space: pre-wrap;"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer mt-2" style="text-align: right;">
+                <button id="modalDeleteBtn" class="btn btn-danger"><i class="ph ph-trash"></i> Xoá bài này</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Thông báo</div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

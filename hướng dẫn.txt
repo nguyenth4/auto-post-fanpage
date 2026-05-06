@@ -1,0 +1,48 @@
+===========================================================
+      HƯỚNG DẪN CHẠY CODE TỰ ĐỘNG ĐĂNG BÀI FANPAGE
+===========================================================
+
+Dự án này đã được thiết lập để tự động đăng bài kèm hình ảnh lên Fanpage.
+Dưới đây là các bước để bạn tự chạy thủ công khi cần:
+
+BƯỚC 1: CHUẨN BỊ NỘI DUNG (FILE EXCEL)
+--------------------------------------
+- Mở file `content.xlsx`.
+- Cột 'Message': Nhập nội dung bài viết.
+- Cột 'Year', 'Month', 'Day', 'Hour', 'Minute': Nhập thời gian muốn đăng.
+  * LƯU Ý: Thời gian phải là tương lai (ít nhất sau hiện tại 15 phút).
+- Cột 'Image': Nhập tên file ảnh (ví dụ: lamp_moon.png). 
+  * Ảnh phải được chép vào thư mục `images` trong dự án.
+
+BƯỚC 2: LẤY MÃ TRUY CẬP (TOKEN) MỚI
+------------------------------------
+Facebook Token thường hết hạn sau một thời gian. Khi code báo lỗi "Session expired", hãy làm như sau:
+1. Truy cập: https://developers.facebook.com/tools/explorer/
+2. Ở mục "User or Page": PHẢI CHỌN đúng tên Fanpage của bạn (Không được để User Token).
+3. Nhấn "Generate Access Token".
+4. Copy mã Token dài đó.
+5. Mở file `quyen-anh - excel.py`, dán mã vào dòng số 11: token = 'MÃ_CỦA_BẠN'
+
+BƯỚC 3: KIỂM TRA ID FANPAGE
+----------------------------
+- Đảm bảo dòng số 6 trong file Python `fanpageID = '932826203256993'` là đúng ID Trang của bạn.
+
+BƯỚC 4: CHẠY CODE THỦ CÔNG
+---------------------------
+Để chạy code, bạn KHÔNG dùng lệnh 'python' hay 'pip' thông thường, mà phải dùng đường dẫn tới môi trường ảo đã cài sẵn trong thư mục.
+
+1. Mở Terminal trong VS Code (hoặc nhấn Win+R gõ cmd rồi cd vào thư mục dự án).
+2. Chạy lệnh sau:
+
+   .\.venv\Scripts\python "quyen-anh - excel.py"
+
+3. Nếu thấy hiện "Post successful (Photo)" là thành công!
+
+BƯỚC 5: XỬ LÝ LỖI THƯỜNG GẶP
+-----------------------------
+- Lỗi "The system cannot find the path specified": Bạn đang đứng sai thư mục dự án trong CMD. Hãy dùng lệnh `cd` để vào đúng thư mục trước.
+- Lỗi "invalid scheduled publish time": Do bạn đặt giờ đăng bài ở quá khứ hoặc quá gần giờ hiện tại. Hãy chỉnh lại file Excel.
+- Lỗi "Token expired": Làm lại Bước 2 để lấy mã mới.
+
+Chúc bạn thành công!
+Lung Linh Decor - Automation Tools.
