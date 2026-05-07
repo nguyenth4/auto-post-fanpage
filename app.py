@@ -30,12 +30,20 @@ if os.environ.get("SESSION_COOKIE_SECURE", "").lower() in {"1", "true", "yes"}:
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL or "sqlite:///app.db"
+if DATABASE_URL:
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+else:
+    # Vercel serverless: use /tmp (writable) instead of project dir
+    if os.environ.get("VERCEL"):
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:////tmp/app.db"
+    else:
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+DB_READY = False
 
 
 class User(db.Model, UserMixin):
@@ -52,6 +60,10 @@ class User(db.Model, UserMixin):
         if not self.password_hash:
             return False
         return check_password_hash(self.password_hash, password)
+
+
+DEFAULT_ADMIN_EMAIL = os.environ.get("DEFAULT_ADMIN_EMAIL", "admin@local.dev").strip().lower()
+DEFAULT_ADMIN_PASSWORD = os.environ.get("DEFAULT_ADMIN_PASSWORD", "Admin@123456")
 
 
 class SocialAccount(db.Model):
@@ -96,8 +108,39 @@ class SocialAccount(db.Model):
         }
 
 
-with app.app_context():
+def _initialize_database() -> None:
     db.create_all()
+
+    # Bootstrap a default account for first login.
+    # This only creates the user if it does not exist yet.
+    if DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD:
+        existing_admin = User.query.filter_by(email=DEFAULT_ADMIN_EMAIL).first()
+        if not existing_admin:
+            seeded = User(email=DEFAULT_ADMIN_EMAIL)
+            seeded.set_password(DEFAULT_ADMIN_PASSWORD)
+            db.session.add(seeded)
+            db.session.commit()
+
+
+with app.app_context():
+    try:
+        _initialize_database()
+        DB_READY = True
+    except Exception as e:
+        # Avoid hard-crash at import time in serverless runtime.
+        print(f"[DB INIT ERROR] {e}")
+
+
+@app.before_request
+def _ensure_db_ready():
+    global DB_READY
+    if DB_READY:
+        return
+    try:
+        _initialize_database()
+        DB_READY = True
+    except Exception as e:
+        print(f"[DB RETRY ERROR] {e}")
 
 
 @login_manager.user_loader
@@ -167,6 +210,42 @@ def _require_env(keys: List[str]) -> None:
 def _has_env(*keys: str) -> bool:
     return all(bool(os.environ.get(k)) for k in keys)
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+def _allowed_emails() -> set[str]:
+    values: set[str] = set()
+    for key in ("AUTH_ALLOWED_EMAILS", "ADMIN_EMAIL"):
+        raw = os.environ.get(key, "")
+        if not raw:
+            continue
+        for part in raw.replace(";", ",").split(","):
+            email = part.strip().lower()
+            if email:
+                values.add(email)
+    if DEFAULT_ADMIN_EMAIL:
+        values.add(DEFAULT_ADMIN_EMAIL)
+    return values
+
+def _is_email_allowed(email: str) -> bool:
+    allowed = _allowed_emails()
+    if not allowed:
+        # If no whitelist configured, do not block existing users by config absence.
+        return True
+    return email.strip().lower() in allowed
+
+def _registration_enabled() -> bool:
+    # Default OFF for private/internal app. Turn on with REGISTRATION_ENABLED=true.
+    return _env_flag("REGISTRATION_ENABLED", default=False)
+
+def _registration_allowed_for_email(email: str) -> bool:
+    if not _registration_enabled():
+        return False
+    return _is_email_allowed(email)
+
 
 def _save_or_update_account(
     *,
@@ -211,13 +290,19 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
     error = request.args.get("error") or None
+    if request.method == "GET" and not _registration_enabled():
+        return redirect(url_for("login", error="Đăng ký đang bị khóa. Liên hệ quản trị viên để cấp quyền tài khoản."))
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
-        if not email or not password:
+        if not _registration_enabled():
+            error = "Đăng ký đang bị khóa. Liên hệ quản trị viên để được tạo tài khoản."
+        elif not email or not password:
             error = "Vui lòng nhập email và mật khẩu."
         elif len(password) < 8:
             error = "Mật khẩu tối thiểu 8 ký tự."
+        elif not _registration_allowed_for_email(email):
+            error = "Email này chưa được cấp quyền đăng ký."
         elif User.query.filter_by(email=email).first():
             error = "Email đã tồn tại."
         else:
@@ -227,7 +312,12 @@ def register():
             db.session.commit()
             login_user(user, remember=True)
             return redirect(url_for("index"))
-    return render_template("register.html", error=error, google_enabled=_has_env("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"))
+    return render_template(
+        "register.html",
+        error=error,
+        google_enabled=_has_env("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
+        registration_enabled=_registration_enabled(),
+    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -239,12 +329,19 @@ def login():
         email = (request.form.get("email") or "").strip().lower()
         password = request.form.get("password") or ""
         user = User.query.filter_by(email=email).first()
-        if not user or not user.check_password(password):
+        if not _is_email_allowed(email):
+            error = "Tài khoản chưa được cấp quyền truy cập hệ thống."
+        elif not user or not user.check_password(password):
             error = "Email hoặc mật khẩu không đúng!"
         else:
             login_user(user, remember=True)
             return redirect(url_for("index"))
-    return render_template("login.html", error=error, google_enabled=_has_env("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"))
+    return render_template(
+        "login.html",
+        error=error,
+        google_enabled=_has_env("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"),
+        registration_enabled=_registration_enabled(),
+    )
 
 
 @app.route("/logout")
@@ -274,9 +371,13 @@ def google_callback():
     email = (userinfo.get("email") or "").lower()
     if not email:
         abort(400, description="Không lấy được email từ Google.")
+    if not _is_email_allowed(email):
+        return redirect(url_for("login", error="Email Google này chưa được cấp quyền truy cập hệ thống."))
 
     user = User.query.filter_by(email=email).first()
     if not user:
+        if not _registration_allowed_for_email(email):
+            return redirect(url_for("login", error="Đăng ký tự động bằng Google đang bị khóa cho email này."))
         user = User(email=email)
         db.session.add(user)
         db.session.commit()

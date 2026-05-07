@@ -223,9 +223,15 @@
         Đăng nhập bằng Google
       </a>
       {% endif %}
+      {% if registration_enabled %}
       <div class="footer-text" style="margin-top: 0;">
         Chưa có tài khoản? <a href="/register" style="color:#f59e0b; text-decoration:none;">Đăng ký</a>
       </div>
+      {% else %}
+      <div class="footer-text" style="margin-top: 0;">
+        Đăng ký tài khoản đang tắt (chế độ private).
+      </div>
+      {% endif %}
     </div>
 
     <div class="footer-text">Lung Linh Decor &copy; 2026</div>

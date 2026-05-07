@@ -91,6 +91,11 @@
     <div class="title">Tạo tài khoản</div>
     <div class="subtitle">Đăng ký bằng email + mật khẩu hoặc dùng Google</div>
 
+    {% if not registration_enabled %}
+    <div class="alert"><span>⚠️</span> Đăng ký công khai đã tắt. Liên hệ quản trị viên để cấp quyền tài khoản.</div>
+    <div class="footer"><a href="/login">Quay lại đăng nhập</a></div>
+    {% else %}
+
     {% if error %}
     <div class="alert"><span>⚠️</span> {{ error }}</div>
     {% endif %}
@@ -116,6 +121,7 @@
     {% endif %}
 
     <div class="footer">Đã có tài khoản? <a href="/login">Đăng nhập</a></div>
+    {% endif %}
   </div>
 </body>
 </html>
