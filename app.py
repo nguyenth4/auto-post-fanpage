@@ -31,11 +31,12 @@ def load_config():
         except Exception as e:
             print(f"Error loading from Supabase: {e}")
     
-    # Fallback to local file
-    if os.path.exists('config.json'):
-        with open('config.json', 'r') as f:
-            return json.load(f)
-    return {"fanpageID": "", "token": ""}
+    # Fallback to local file only if NOT on Vercel
+    if not os.environ.get('VERCEL'):
+        if os.path.exists('config.json'):
+            with open('config.json', 'r') as f:
+                return json.load(f)
+    return {"fanpageID": "932826203256993", "token": ""}
 
 def save_config(data):
     if supabase:
@@ -46,13 +47,19 @@ def save_config(data):
                 "access_token": data.get('token'),
                 "updated_at": "now()"
             }).execute()
-            return
+            return True
         except Exception as e:
             print(f"Error saving to Supabase: {e}")
+            if os.environ.get('VERCEL'):
+                raise Exception(f"Không thể lưu vào Database: {str(e)}")
             
-    # Fallback to local file
-    with open('config.json', 'w') as f:
-        json.dump(data, f, indent=4)
+    # Fallback to local file only if NOT on Vercel
+    if not os.environ.get('VERCEL'):
+        with open('config.json', 'w') as f:
+            json.dump(data, f, indent=4)
+        return True
+    
+    raise Exception("Chưa cấu hình Supabase trên Vercel")
 
 @app.route('/')
 def index():
