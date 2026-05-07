@@ -21,8 +21,8 @@
                 <a href="#" class="nav-item active" data-tab="dashboard">
                     <i class="ph ph-squares-four"></i> Dashboard
                 </a>
-                <a href="#" class="nav-item" data-tab="settings">
-                    <i class="ph ph-gear"></i> Cấu hình
+                <a href="#" class="nav-item" data-tab="connections">
+                    <i class="ph ph-plugs-connected"></i> Kết nối
                 </a>
                 <a href="#" class="nav-item" data-tab="scheduled">
                     <i class="ph ph-calendar-check"></i> Bài đã lên lịch
@@ -38,8 +38,15 @@
         <!-- Main Content -->
         <main class="main-content">
             <header>
-                <h1>Xin chào, Admin! 👋</h1>
-                <p>Hệ thống tự động lên lịch bài đăng Fanpage.</p>
+                <div class="flex-between">
+                    <div>
+                        <h1>Xin chào, {{ user.email }}!</h1>
+                        <p>Quản lý kết nối đa nền tảng và auto-post.</p>
+                    </div>
+                    <div>
+                        <a class="btn btn-secondary btn-sm" href="/logout"><i class="ph ph-sign-out"></i> Đăng xuất</a>
+                    </div>
+                </div>
             </header>
 
             <!-- Dashboard Tab -->
@@ -62,24 +69,167 @@
                 </div>
             </section>
 
-            <!-- Settings Tab -->
-            <section id="settings" class="tab-content">
+            <!-- Connections Tab -->
+            <section id="connections" class="tab-content">
                 <div class="card">
-                    <h3>Cấu hình kết nối Facebook</h3>
-                    <p class="text-muted">Nhập ID Fanpage và Access Token (có quyền `publish_pages`, `pages_manage_posts`).</p>
-                    
-                    <form id="configForm" class="mt-2">
-                        <div class="form-group">
-                            <label for="fanpageID">Fanpage ID</label>
-                            <input type="text" id="fanpageID" placeholder="VD: 932826203256993" required>
+                    <div class="flex-between">
+                        <div>
+                            <h3>Kết nối nền tảng</h3>
+                            <p class="text-muted">Hỗ trợ multi-account: Facebook Page, TikTok Business, YouTube Channel.</p>
                         </div>
-                        <div class="form-group">
-                            <label for="token">Access Token</label>
-                            <textarea id="token" rows="4" placeholder="Nhập mã token siêu dài vào đây..." required></textarea>
-                            <small>Lấy mã tại: <a href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a></small>
+                        <button id="refreshConnectionsBtn" class="btn btn-secondary btn-sm"><i class="ph ph-arrows-clockwise"></i> Refresh token</button>
+                    </div>
+
+                    <div class="mt-2" style="display:flex; gap:10px; flex-wrap: wrap;">
+                        {% if facebook_enabled %}
+                        <a class="btn btn-primary btn-sm" href="/connect/facebook"><i class="ph ph-facebook-logo"></i> Kết nối Facebook Page</a>
+                        {% endif %}
+                        {% if tiktok_enabled %}
+                        <a class="btn btn-primary btn-sm" href="/connect/tiktok"><i class="ph ph-tiktok-logo"></i> Kết nối TikTok</a>
+                        {% endif %}
+                        {% if google_enabled %}
+                        <a class="btn btn-primary btn-sm" href="/connect/youtube"><i class="ph ph-youtube-logo"></i> Kết nối YouTube</a>
+                        <a class="btn btn-secondary btn-sm" href="/auth/google/login"><i class="ph ph-google-logo"></i> Google OAuth</a>
+                        {% endif %}
+                    </div>
+
+                    <div class="card mt-2" style="padding: 1rem;">
+                        <h3 style="margin-bottom: 6px;">Đăng nhanh (TikTok/YouTube)</h3>
+                        <p class="text-muted">An toàn/tiện nhất là dùng <strong>OAuth</strong>. Với YouTube: chọn file video và upload (resumable upload). Với TikTok: cần video_url public và app có quyền Content Posting API.</p>
+                        <form id="quickPostTikTok" class="mt-2" style="display:grid; gap: 10px;">
+                            <div class="form-group">
+                                <label for="ttPostAccount">TikTok Account (Open ID)</label>
+                                <input type="text" id="ttPostAccount" placeholder="open_id đã kết nối ở phía trên">
+                            </div>
+                            <div class="form-group">
+                                <label for="ttVideoUrl">TikTok video_url (public)</label>
+                                <input type="text" id="ttVideoUrl" placeholder="https://.../video.mp4">
+                            </div>
+                            <div class="form-group">
+                                <label for="ttCaption">Caption</label>
+                                <input type="text" id="ttCaption" placeholder="Nội dung ngắn...">
+                            </div>
+                            <div>
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="ph ph-paper-plane-tilt"></i> Post TikTok</button>
+                            </div>
+                        </form>
+
+                        <div class="mt-2" style="height:1px; background: rgba(255,255,255,0.08);"></div>
+
+                        <form id="quickPostYouTube" class="mt-2" style="display:grid; gap: 10px;">
+                            <div class="form-group">
+                                <label for="ytPostChannel">YouTube Channel ID</label>
+                                <input type="text" id="ytPostChannel" placeholder="UCxxxxxxxxxxxx (đã kết nối)">
+                            </div>
+                            <div class="form-group">
+                                <label for="ytTitle">Tiêu đề</label>
+                                <input type="text" id="ytTitle" placeholder="Auto Upload">
+                            </div>
+                            <div class="form-group">
+                                <label for="ytDesc">Mô tả</label>
+                                <textarea id="ytDesc" rows="3" placeholder="Mô tả..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="ytPrivacy">Quyền riêng tư</label>
+                                <select id="ytPrivacy" class="select">
+                                    <option value="private" selected>Private</option>
+                                    <option value="unlisted">Unlisted</option>
+                                    <option value="public">Public</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="ytVideoFile">File video</label>
+                                <input type="file" id="ytVideoFile" accept="video/*">
+                                <small>Yêu cầu token có scope <code>youtube.upload</code>. Khuyến nghị connect bằng Google OAuth để có refresh token.</small>
+                            </div>
+                            <div>
+                                <button type="submit" class="btn btn-primary btn-sm"><i class="ph ph-upload-simple"></i> Upload YouTube</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="card mt-2" style="padding: 1rem;">
+                        <h3 style="margin-bottom: 6px;">Kết nối Facebook bằng Token</h3>
+                        <p class="text-muted">Dán <strong>Fanpage ID</strong> và <strong>Page Access Token</strong>. Hệ thống sẽ kiểm tra token và lưu page vào danh sách kết nối (multi-page).</p>
+                        <form id="fbManualForm" class="mt-2">
+                            <div class="form-group">
+                                <label for="fbFanpageID">Fanpage ID</label>
+                                <input type="text" id="fbFanpageID" placeholder="VD: 932826203256993" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="fbToken">Page Access Token</label>
+                                <textarea id="fbToken" rows="3" placeholder="Dán token vào đây..." required></textarea>
+                                <small>
+                                    Lấy token tại
+                                    <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer">Graph API Explorer</a>
+                                    hoặc
+                                    <a href="https://developers.facebook.com/tools/accesstoken/" target="_blank" rel="noopener noreferrer">Access Token Tool</a>.
+                                    Quyền thường cần: <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>.
+                                </small>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="ph ph-link"></i> Lưu kết nối</button>
+                        </form>
+                    </div>
+
+                    <div class="card mt-2" style="padding: 1rem;">
+                        <h3 style="margin-bottom: 6px;">Kết nối TikTok bằng Token</h3>
+                        <p class="text-muted">Nhập <strong>Open ID</strong> và <strong>Access Token</strong>. Hệ thống sẽ kiểm tra token qua TikTok API và lưu vào danh sách kết nối.</p>
+                        <form id="ttManualForm" class="mt-2">
+                            <div class="form-group">
+                                <label for="ttOpenId">TikTok Open ID</label>
+                                <input type="text" id="ttOpenId" placeholder="VD: 7d8c...." required>
+                            </div>
+                            <div class="form-group">
+                                <label for="ttToken">TikTok Access Token</label>
+                                <textarea id="ttToken" rows="3" placeholder="Dán token vào đây..." required></textarea>
+                                <small>
+                                    Lưu ý: để đăng video qua API cần bật quyền theo TikTok app của bạn (Content Posting API).
+                                </small>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="ph ph-link"></i> Lưu kết nối</button>
+                        </form>
+                    </div>
+
+                    <div class="card mt-2" style="padding: 1rem;">
+                        <h3 style="margin-bottom: 6px;">Kết nối YouTube bằng Token</h3>
+                        <p class="text-muted">Nhập <strong>Channel ID</strong> và <strong>Access Token</strong> (Google). Hệ thống sẽ kiểm tra channel và lưu vào danh sách kết nối.</p>
+                        <form id="ytManualForm" class="mt-2">
+                            <div class="form-group">
+                                <label for="ytChannelId">YouTube Channel ID</label>
+                                <input type="text" id="ytChannelId" placeholder="VD: UCxxxxxxxxxxxx" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="ytToken">YouTube Access Token</label>
+                                <textarea id="ytToken" rows="3" placeholder="Dán token vào đây..." required></textarea>
+                                <small>
+                                    Token phải có scope upload (ví dụ: <code>https://www.googleapis.com/auth/youtube.upload</code>) nếu muốn đăng video.
+                                </small>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="ph ph-link"></i> Lưu kết nối</button>
+                        </form>
+                    </div>
+
+                    <div class="mt-2">
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Nền tảng</th>
+                                        <th>Tài khoản/Page/Channel</th>
+                                        <th>Trạng thái</th>
+                                        <th>Cập nhật</th>
+                                        <th>Hành động</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="connectionsList">
+                                    <tr><td colspan="5" class="text-center">Đang tải...</td></tr>
+                                </tbody>
+                            </table>
                         </div>
-                        <button type="submit" class="btn btn-primary">Lưu cấu hình</button>
-                    </form>
+                        <small class="text-muted">
+                            Gợi ý: nếu token Facebook hết hạn, thường cần bấm “Kết nối Facebook Page” lại.
+                        </small>
+                    </div>
                 </div>
             </section>
 
@@ -87,8 +237,19 @@
             <section id="scheduled" class="tab-content">
                 <div class="card">
                     <div class="flex-between">
-                        <h3>Các bài viết đang chờ xuất bản</h3>
-                        <button id="refreshPostsBtn" class="btn btn-secondary btn-sm"><i class="ph ph-arrows-clockwise"></i> Làm mới</button>
+                        <div>
+                            <h3>Các bài viết đang chờ xuất bản</h3>
+                            <small class="text-muted">Chọn Page để xem nội dung/ lịch đăng tương ứng.</small>
+                        </div>
+                        <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap: wrap;">
+                                <select id="fbPageSelect" class="select" style="min-width: 280px; max-width: 420px;">
+                                <option value="">— Chọn Facebook Page —</option>
+                                </select>
+                                <span id="fbPageStatus" class="badge badge-muted">Chưa chọn</span>
+                            </div>
+                            <button id="refreshPostsBtn" class="btn btn-secondary btn-sm"><i class="ph ph-arrows-clockwise"></i> Làm mới</button>
+                        </div>
                     </div>
                     
                     <div class="table-responsive mt-2">

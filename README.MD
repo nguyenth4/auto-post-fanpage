@@ -1,22 +1,70 @@
-﻿bước 1: cài python 3.6, nhớ tích vào ô add python 3.6 to path trước khi ấn install now (nếu máy ko có python thì không cần quan tâm, nếu có bản cũ thì nếu được gỡ bản cũ là hay nhất, nếu không thì phải vào C:\users\tên user name\AppData\Local\Programs\Python\Scripts, rồi mở CMD tại folder đó rồi cài pip - sẽ nói ở bước 5)
+﻿## Auto Post Fanpage / Multi-Platform Connections
 
+App Flask hỗ trợ:
 
-trong lúc làm bước 1 ta tranh thủ.
+- **Đăng ký/đăng nhập**: email + password, hoặc **Google OAuth**
+- **Kết nối đa nền tảng**: Facebook Page (Meta), TikTok, YouTube (Google)
+- **Multi-account**: lưu nhiều Page/Channel/Account cho mỗi user
+- **Trạng thái**: `connected / expired / error / disconnected`
+- **Tự refresh token**: Google/YouTube + TikTok (Facebook Page thường cần reconnect)
 
-bước 2: vào trang http://findmyfbid.com/ để lấy ID fanpage bằng cách pate địa chỉ fanpage ca mình vào. sau khi lấy được ID thì pate vào python
+## Cài đặt
 
-bước 3: vào trang https://developers.facebook.com/tools/explorer/
-ấn vào ô " nhận mã" bên phải, chọn "nhận mã truy cập trang", chọn fanpage mình cần auto.
+```bash
+pip install -r requirements.txt
+```
 
-bước 4: ấn vào ô nhận mã lúc đầu mà bây giờ đã đổi thành tên fanpage. chọn "yêu cầu publish_pages"
+## Chạy local
 
-bước 5: mình ấn phím window+R hoặc mở CMD từ start menu: sau đó gõ lệnh sau để cài thư viện cho python:
-pip install requests pyexcel pyexcel-xls pyexcel-xlsx
+```bash
+python app.py
+```
 
-bước 6: copy nội dung dài dài trong phần Mã truy cập vào phần token trong python.
+Mặc định chạy `http://127.0.0.1:5000`.
 
-bước 7: mở file excel content.xlsx sửa ngày tháng sao cho hợp lý. Facebook quy định bài viết hẹn giờ phải ít nhất 6 phút sau thời điểm hiện tại và không quá 6 tháng. nên chạy thử (VD: hẹn giờ vào 12 tiếng sau )
+## Biến môi trường (.env)
 
-bước 8: mở file python để chạy lần lượt pate ID fanpage và token
+Tối thiểu:
 
-bước 9: nếu thành công sẽ hiện ra chữ post successful, nếu lỗi nhớ chụp lại để check lỗi.
+- **SECRET_KEY**: chuỗi random dài
+- **DATABASE_URL** (khuyến nghị): Postgres (ví dụ Supabase) để chạy production ổn định  
+  Nếu không có, app dùng `sqlite:///app.db` (chỉ phù hợp local).
+
+OAuth:
+
+- **GOOGLE_CLIENT_ID**, **GOOGLE_CLIENT_SECRET**
+- **FACEBOOK_CLIENT_ID**, **FACEBOOK_CLIENT_SECRET**
+- **TIKTOK_CLIENT_KEY**, **TIKTOK_CLIENT_SECRET**
+
+Cookie (khuyến nghị production):
+
+- **SESSION_COOKIE_SECURE**: `true`
+- **SESSION_COOKIE_SAMESITE**: `Lax` (hoặc `None` nếu cần embed/3rd-party)
+
+## Redirect URL cần cấu hình
+
+Khi deploy (ví dụ Vercel), thay `BASE_URL` bằng domain thật.
+
+### Google OAuth
+
+- Authorized redirect URI:  
+  `BASE_URL/auth/google/callback`
+
+Scope đã bật sẵn: `openid email profile` và `youtube.readonly`.
+
+### Facebook (Meta)
+
+- Valid OAuth Redirect URI:  
+  `BASE_URL/connect/facebook/callback`
+
+App dùng scope: `pages_show_list,pages_read_engagement,pages_manage_posts`
+
+### TikTok
+
+- Redirect URI:  
+  `BASE_URL/connect/tiktok/callback`
+
+## Ghi chú
+
+- **Facebook Page**: app sẽ lấy danh sách page qua `/me/accounts` và lưu từng page như một connection.
+- **Refresh token**: nút “Refresh token” gọi `/api/connections/refresh` để refresh các connection đang `expired`.

@@ -8,15 +8,16 @@ import pyexcel
 import json
 import os
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
-def run_auto_post():
+def run_auto_post(fanpage_id: Optional[str] = None, access_token: Optional[str] = None):
     # Supabase setup
     SUPABASE_URL = os.environ.get('SUPABASE_URL')
     SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-    fanpageID = '932826203256993'
-    token = ''
+    fanpageID = fanpage_id or '932826203256993'
+    token = access_token or ''
 
     if SUPABASE_URL and SUPABASE_KEY:
         try:
@@ -39,7 +40,7 @@ def run_auto_post():
             with open('config.json', 'r') as f:
                 config = json.load(f)
                 fanpageID = config.get('fanpageID', fanpageID)
-                token = config.get('token', '')
+                token = token or config.get('token', '')
         except FileNotFoundError:
             pass
 
