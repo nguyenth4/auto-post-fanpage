@@ -1,21 +1,57 @@
 import os
 import json
-import subprocess
 import requests
 from flask import Flask, render_template, request, jsonify
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
-CONFIG_FILE = 'config.json'
+# Supabase setup
+SUPABASE_URL = os.environ.get('SUPABASE_URL')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
+supabase: Client = None
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
+    if supabase:
+        try:
+            response = supabase.table('app_config').select('*').eq('id', 1).execute()
+            if response.data:
+                config = response.data[0]
+                return {
+                    "fanpageID": config.get('fanpage_id', ''),
+                    "token": config.get('access_token', '')
+                }
+        except Exception as e:
+            print(f"Error loading from Supabase: {e}")
+    
+    # Fallback to local file
+    if os.path.exists('config.json'):
+        with open('config.json', 'r') as f:
             return json.load(f)
     return {"fanpageID": "", "token": ""}
 
 def save_config(data):
-    with open(CONFIG_FILE, 'w') as f:
+    if supabase:
+        try:
+            supabase.table('app_config').upsert({
+                "id": 1,
+                "fanpage_id": data.get('fanpageID'),
+                "access_token": data.get('token'),
+                "updated_at": "now()"
+            }).execute()
+            return
+        except Exception as e:
+            print(f"Error saving to Supabase: {e}")
+            
+    # Fallback to local file
+    with open('config.json', 'w') as f:
         json.dump(data, f, indent=4)
 
 @app.route('/')
@@ -29,12 +65,10 @@ def config():
         fanpage_id = data.get('fanpageID')
         token = data.get('token')
         
-        # Validate ID and Token before saving
         if not fanpage_id or not token:
             return jsonify({"status": "error", "message": "Vui lòng nhập đầy đủ ID và Token"}), 400
             
         try:
-            # Check if token is valid for this fanpageID
             validation_url = f'https://graph.facebook.com/v19.0/{fanpage_id}?fields=id,name&access_token={token}'
             response = requests.get(validation_url)
             val_data = response.json()
@@ -43,7 +77,6 @@ def config():
                 error_msg = val_data.get('error', {}).get('message', 'Token hoặc ID không hợp lệ')
                 return jsonify({"status": "error", "message": f"Facebook báo lỗi: {error_msg}"}), 400
             
-            # If everything is ok, save it
             save_config(data)
             return jsonify({
                 "status": "success", 
@@ -51,26 +84,22 @@ def config():
             })
             
         except Exception as e:
-            return jsonify({"status": "error", "message": f"Lỗi hệ thống khi xác thực: {str(e)}"}), 500
+            return jsonify({"status": "error", "message": f"Lỗi hệ thống: {str(e)}"}), 500
             
     return jsonify(load_config())
+
+import poster
 
 @app.route('/api/run_script', methods=['POST'])
 def run_script():
     try:
-        # Run the python script
-        # Assuming the python executable is available
-        python_path = os.path.join('.venv', 'Scripts', 'python.exe')
-        if not os.path.exists(python_path):
-            python_path = 'python' # Fallback
-            
-        result = subprocess.run([python_path, 'quyen-anh - excel.py'], 
-                              capture_output=True, text=True, cwd=os.getcwd())
+        # Run the auto post logic directly
+        output = poster.run_auto_post()
         
         return jsonify({
-            "status": "success" if result.returncode == 0 else "error",
-            "output": result.stdout,
-            "error": result.stderr
+            "status": "success" if "Thành công" in output else "error",
+            "output": output,
+            "error": "" if "Thành công" in output else output
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
