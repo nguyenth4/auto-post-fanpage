@@ -3,10 +3,9 @@ import datetime
 
 # don't change this!
 #fanpageID = 1549950165266687
+import requests
+import pyexcel
 import json
-import os
-
-from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
 
@@ -21,14 +20,19 @@ def run_auto_post():
 
     if SUPABASE_URL and SUPABASE_KEY:
         try:
-            supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-            response = supabase.table('app_config').select('*').eq('id', 1).execute()
-            if response.data:
-                config = response.data[0]
+            url = f"{SUPABASE_URL}/rest/v1/app_config?id=eq.1"
+            headers = {
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json"
+            }
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200 and response.json():
+                config = response.json()[0]
                 fanpageID = config.get('fanpage_id', fanpageID)
                 token = config.get('access_token', '')
         except Exception as e:
-            print(f"Lỗi khi lấy cấu hình từ Supabase: {e}")
+            print(f"Lỗi khi lấy cấu hình từ Supabase API: {e}")
     else:
         # Fallback to local file
         try:

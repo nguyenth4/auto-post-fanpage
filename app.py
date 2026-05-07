@@ -2,7 +2,6 @@ import os
 import json
 import requests
 from flask import Flask, render_template, request, jsonify
-from supabase import create_client, Client
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -13,23 +12,28 @@ app = Flask(__name__)
 # Supabase setup
 SUPABASE_URL = os.environ.get('SUPABASE_URL')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
-supabase: Client = None
 
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_supabase_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates"
+    }
 
 def load_config():
-    if supabase:
+    if SUPABASE_URL and SUPABASE_KEY:
         try:
-            response = supabase.table('app_config').select('*').eq('id', 1).execute()
-            if response.data:
-                config = response.data[0]
+            url = f"{SUPABASE_URL}/rest/v1/app_config?id=eq.1"
+            response = requests.get(url, headers=get_supabase_headers())
+            if response.status_code == 200 and response.json():
+                config = response.json()[0]
                 return {
                     "fanpageID": config.get('fanpage_id', ''),
                     "token": config.get('access_token', '')
                 }
         except Exception as e:
-            print(f"Error loading from Supabase: {e}")
+            print(f"Error loading from Supabase API: {e}")
     
     # Fallback to local file only if NOT on Vercel
     if not os.environ.get('VERCEL'):
@@ -39,17 +43,22 @@ def load_config():
     return {"fanpageID": "932826203256993", "token": ""}
 
 def save_config(data):
-    if supabase:
+    if SUPABASE_URL and SUPABASE_KEY:
         try:
-            supabase.table('app_config').upsert({
+            url = f"{SUPABASE_URL}/rest/v1/app_config"
+            payload = {
                 "id": 1,
                 "fanpage_id": data.get('fanpageID'),
                 "access_token": data.get('token'),
                 "updated_at": "now()"
-            }).execute()
-            return True
+            }
+            response = requests.post(url, headers=get_supabase_headers(), json=payload)
+            if response.status_code in [200, 201]:
+                return True
+            else:
+                raise Exception(f"Supabase API Error: {response.text}")
         except Exception as e:
-            print(f"Error saving to Supabase: {e}")
+            print(f"Error saving to Supabase API: {e}")
             if os.environ.get('VERCEL'):
                 raise Exception(f"Không thể lưu vào Database: {str(e)}")
             
@@ -60,7 +69,6 @@ def save_config(data):
         return True
     
     raise Exception("Chưa cấu hình Supabase trên Vercel")
-
 @app.route('/')
 def index():
     return render_template('index.html')
