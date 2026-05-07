@@ -58,10 +58,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await res.json();
             if(data.status === 'success') {
-                showToast("Đã lưu cấu hình thành công!");
+                showToast(data.message);
+            } else {
+                showToast(data.message || "Lỗi khi lưu cấu hình!", true);
             }
         } catch (e) {
-            showToast("Lỗi khi lưu cấu hình!", true);
+            showToast("Lỗi mạng khi kết nối tới server!", true);
         }
     });
 

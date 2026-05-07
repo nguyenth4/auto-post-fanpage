@@ -26,8 +26,33 @@ def index():
 def config():
     if request.method == 'POST':
         data = request.json
-        save_config(data)
-        return jsonify({"status": "success", "message": "Config saved successfully"})
+        fanpage_id = data.get('fanpageID')
+        token = data.get('token')
+        
+        # Validate ID and Token before saving
+        if not fanpage_id or not token:
+            return jsonify({"status": "error", "message": "Vui lòng nhập đầy đủ ID và Token"}), 400
+            
+        try:
+            # Check if token is valid for this fanpageID
+            validation_url = f'https://graph.facebook.com/v19.0/{fanpage_id}?fields=id,name&access_token={token}'
+            response = requests.get(validation_url)
+            val_data = response.json()
+            
+            if response.status_code != 200:
+                error_msg = val_data.get('error', {}).get('message', 'Token hoặc ID không hợp lệ')
+                return jsonify({"status": "error", "message": f"Facebook báo lỗi: {error_msg}"}), 400
+            
+            # If everything is ok, save it
+            save_config(data)
+            return jsonify({
+                "status": "success", 
+                "message": f"Kết nối thành công tới Fanpage: {val_data.get('name')}"
+            })
+            
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Lỗi hệ thống khi xác thực: {str(e)}"}), 500
+            
     return jsonify(load_config())
 
 @app.route('/api/run_script', methods=['POST'])
